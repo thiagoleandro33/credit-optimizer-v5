@@ -1,13 +1,9 @@
 ---
 name: credit-optimizer
-description: Automatically optimize AI agent credit usage by routing tasks to the most cost-efficient execution path. Use when you want to reduce AI API costs by 30-75% without quality loss, classify task complexity before execution, route simple tasks to free or low-cost models, split complex tasks into optimized sub-tasks, or detect vague prompts before wasting credits.
-version: 5.2.0
-author: rafsilva85
-license: MIT
-compatibility: claude-code, cursor, codex, manus, opencode
+description: Optimize Manus task execution cost with multilingual intent routing, quality-preserving model selection, clarification of ambiguous prompts, mixed-task decomposition, action detection, and MCP integration. Use before credit-consuming tasks, batch routing, model-tier selection, or when vague prompts risk wasted execution.
 ---
 
-# Credit Optimizer v5
+# Credit Optimizer v5.3
 
 **Automatically optimize AI agent credit/token usage by routing tasks to the most cost-efficient execution path — with zero quality loss.**
 
@@ -21,6 +17,10 @@ Audited across 53 real-world scenarios. 30-75% cost savings. 0% quality degradat
 - When you need to decide between different model tiers (free/standard/premium)
 
 ## How It Works
+
+### Step 0: Safety and Ambiguity Gate
+
+Before routing, reject empty or non-string prompts with a structured error. Treat unknown or vague requests as `CLARIFY_FIRST` so the Manus asks for outcome, constraints, current-data needs, tools, and file-output requirements before spending credits. Ignore negated actions such as “não crie” when deciding whether execution is required.
 
 ### Step 1: Task Classification
 
@@ -57,6 +57,9 @@ Before executing, evaluate the prompt:
 Route to the optimal execution path:
 
 ```
+IF task is empty, unknown, or materially vague:
+  → Use CLARIFY_FIRST before execution
+
 IF task is simple Q&A or formatting:
   → Use FREE tier / Chat mode (no credits)
   
@@ -100,6 +103,6 @@ During execution, apply these optimizations:
 ## Links
 
 - **Website**: [creditopt.ai](https://creditopt.ai)
-- **GitHub**: [github.com/rafsilva85/manus-credit-optimizer](https://github.com/rafsilva85/manus-credit-optimizer)
+- **GitHub**: [github.com/rafsilva85/credit-optimizer-v5](https://github.com/rafsilva85/credit-optimizer-v5)
 - **MCP Server**: Available as Python MCP server for programmatic integration
 - **Full Manus Skill**: Available at [Gumroad](https://rafaamaral.gumroad.com/l/credit-optimizer-v5) ($29, one-time)

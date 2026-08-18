@@ -1,21 +1,42 @@
 #!/usr/bin/env python3
 """
-Credit Optimizer MCP Server v5.2
-Analyze any AI agent prompt and get optimization recommendations.
-ZERO quality loss — audited across 53 adversarial scenarios, ~55% average savings.
+Credit Optimizer MCP Server v5.3
+Analyze any Manus task prompt and return quality-preserving execution recommendations.
+Audited across 53 adversarial scenarios with explicit clarification and safe routing gates.
 
-Works with: Claude, Cursor, Copilot, Codex, Windsurf, Cline, and any MCP client.
+Works with: Manus and any MCP-compatible client.
 """
 
 import json
 import re
 import sys
+import unicodedata
 from typing import Any
 
 from fastmcp import FastMCP
 
+SERVER_VERSION = "5.3.0"
+
 # Create the MCP server
 mcp = FastMCP("Credit Optimizer")
+
+
+def normalize_text(text: str) -> str:
+    """Normalize case, accents, and whitespace for robust multilingual matching."""
+    decomposed = unicodedata.normalize("NFKD", text.casefold())
+    without_marks = "".join(char for char in decomposed if not unicodedata.combining(char))
+    return re.sub(r"\s+", " ", without_marks).strip()
+
+
+def _normalize_pattern(pattern: str) -> str:
+    """Normalize literal accents in a regex while preserving regex syntax."""
+    return normalize_text(pattern)
+
+
+def _phrase_pattern(phrase: str) -> str:
+    """Build a boundary-aware pattern so `api` does not match `capital`."""
+    normalized = re.escape(normalize_text(phrase)).replace(r"\ ", r"\s+")
+    return rf"(?<!\w){normalized}(?!\w)"
 
 # ============================================================
 # CORE ANALYSIS ENGINE (ported from analyze_prompt.py v5.2)
@@ -98,14 +119,17 @@ COMPLEXITY_INDICATORS = {
 
 VAGUENESS_INDICATORS = [
     "bonito", "nice", "bom", "good", "legal", "cool", "interessante",
-    "interesting", "profissional", "professional", "moderno", "modern",
-    "algo", "something", "tipo", "kind of", "qualquer", "any"
+    "interesting", "profissional", "professional", "moderno", "moderna", "modern",
+    "algo", "something", "tipo", "kind of", "qualquer", "any", "generico", "generica", "vago", "vaga"
 ]
 
 ACTION_INDICATORS = [
-    r"\b(faça|faz|execute|executar|rode|rodar|instale|instalar)\b",
+    r"\b(faca|faz|execute|executar|rode|rodar|instale|instalar)\b",
     r"\b(configure|configurar|implante|implantar|deploy)\b",
     r"\b(acesse|acessar|conecte|conectar|ssh)\b",
+    r"\b(automatize|automatizar|automate|agende|agendar|monitore|monitorar)\b",
+    r"\b(crie|criar|create|build|desenvolva|desenvolver|develop|implemente|implementar|implement)\b\s+(um|uma|a|an)?\s*(site|website|app|aplicativo|api|backend|frontend|sistema|programa|script|workflow|pipeline|arquivo|file|documento|document)\b",
+    r"\b(gere|gerar|generate)\b\s+(um|uma|a|an)?\s*(imagem|image|foto|photo|video|vídeo|arquivo|file|documento|document|pdf|png|jpg|svg)\b",
     r"\b(baixe|baixar|download|upload)\b.*\b(dados|data|arquivo|api)\b",
     r"\b(pip|npm|apt|brew|docker|compose|kubectl)\b",
 ]
@@ -133,13 +157,24 @@ FILE_OUTPUT_INDICATORS = [
 ]
 
 
+def _is_negated_match(normalized_text: str, keyword: str) -> bool:
+    pattern = _phrase_pattern(keyword)
+    return bool(re.search(rf"\b(?:nao|never|nunca)\b(?:\s+\w+){{0,2}}\s+{pattern}", normalized_text))
+
+
 def count_matches(text: str, keywords: list) -> int:
-    text_lower = text.lower()
-    return sum(1 for kw in keywords if kw.lower() in text_lower)
+    normalized = normalize_text(text)
+    return sum(
+        1
+        for keyword in keywords
+        if re.search(_phrase_pattern(keyword), normalized)
+        and not _is_negated_match(normalized, keyword)
+    )
 
 
 def count_regex_matches(text: str, patterns: list) -> int:
-    return sum(1 for p in patterns if re.search(p, text, re.IGNORECASE))
+    normalized = normalize_text(text)
+    return sum(1 for pattern in patterns if re.search(_normalize_pattern(pattern), normalized, re.IGNORECASE))
 
 
 def analyze_intent(text: str) -> tuple:
@@ -173,30 +208,60 @@ def analyze_complexity(text: str) -> tuple:
     return level, {"high": high, "medium": medium, "low": low, "word_count": word_count}
 
 
-def detect_mixed_task(intent_scores: dict) -> tuple:
-    significant = {k: v for k, v in intent_scores.items() if v >= 2}
-    if len(significant) >= 2:
-        sorted_intents = sorted(significant.items(), key=lambda x: x[1], reverse=True)
-        return True, [k for k, v in sorted_intents[:3]]
-    return False, []
+def detect_mixed_task(intent_scores: dict, text: str = "") -> tuple:
+    """Detect compound requests using explicit connective language."""
+    significant = {key: score for key, score in intent_scores.items() if score >= 1}
+    if len(significant) < 2:
+        return False, []
+
+    sorted_intents = sorted(significant.items(), key=lambda item: item[1], reverse=True)
+    top_score = sorted_intents[0][1]
+    second_score = sorted_intents[1][1]
+    normalized = normalize_text(text)
+    action_after_connector = r"(?:crie|criar|desenvolva|desenvolver|analise|analisar|pesquise|pesquisar|gere|gerar|escreva|escrever|automatize|automatizar|compare|comparar|build|create|analyze|research|generate|write)"
+    has_connector = bool(
+        re.search(r"\b(?:and|tambem|depois|alem|then|plus)\b", normalized)
+        or re.search(rf"\be\s+{action_after_connector}\b", normalized)
+    )
+
+    # One strong intent plus a single incidental keyword is not a compound task.
+    if not has_connector:
+        return False, []
+    if top_score >= 2 and second_score == 1 and sorted_intents[0][0] == "automation":
+        return False, []
+    return True, [key for key, _ in sorted_intents[:3]]
 
 
 def needs_factual_data(text: str) -> bool:
-    matches = sum(1 for p in FACTUAL_DATA_INDICATORS if re.search(p, text, re.IGNORECASE))
-    strong_temporal = bool(re.search(r'\b(este ano|this year|hoje|today|agora|now|atual|current)\b', text, re.IGNORECASE))
+    matches = count_regex_matches(text, FACTUAL_DATA_INDICATORS)
+    strong_temporal = bool(re.search(r"\b(este\s+ano|this\s+year|hoje|today|agora|now|atual|current)\b", normalize_text(text)))
     return matches >= 1 or strong_temporal
 
 
 def needs_file_output(text: str) -> bool:
-    return any(re.search(p, text, re.IGNORECASE) for p in FILE_OUTPUT_INDICATORS)
+    normalized = normalize_text(text)
+    output_container = r"\b(arquivo|file|documento|document|planilha|spreadsheet|apresentacao|presentation|slides)\b"
+    output_verb = r"\b(gere|gerar|salve|salvar|exporte|exportar|crie|criar|generate|save|export|create)\b"
+    file_type = r"\b(pdf|docx|xlsx|pptx|csv|json|html|png|jpg|svg)\b"
+    return bool(
+        re.search(output_container, normalized)
+        or re.search(rf"{output_verb}.*{file_type}", normalized)
+    )
 
 
 def needs_agent_action(text: str) -> bool:
-    return any(re.search(p, text, re.IGNORECASE) for p in ACTION_INDICATORS)
+    normalized = normalize_text(text)
+    for pattern in ACTION_INDICATORS:
+        for match in re.finditer(_normalize_pattern(pattern), normalized, re.IGNORECASE):
+            prefix = normalized[max(0, match.start() - 48):match.start()]
+            if re.search(r"\b(?:nao|never|nunca)\b(?:\s+\w+){0,2}\s*$", prefix):
+                continue
+            return True
+    return False
 
 
 def is_inherently_complex(text: str) -> bool:
-    return any(re.search(p, text, re.IGNORECASE) for p in INHERENT_COMPLEXITY_INDICATORS)
+    return count_regex_matches(text, INHERENT_COMPLEXITY_INDICATORS) > 0
 
 
 def determine_strategy(intent: str, complexity: str, is_mixed: bool, 
@@ -204,7 +269,7 @@ def determine_strategy(intent: str, complexity: str, is_mixed: bool,
                        has_actions: bool, inherent_complex: bool, text: str) -> dict:
     """Core decision matrix — ZERO quality loss."""
     
-    force_agent = needs_files or has_actions
+    force_agent = needs_files or has_actions or intent == "automation"
     if inherent_complex:
         complexity = "high"
 
@@ -299,6 +364,51 @@ def determine_strategy(intent: str, complexity: str, is_mixed: bool,
             ]
         }
 
+    # Data analysis
+    if intent == "data_analysis":
+        return {
+            "strategy": "DIRECT_STANDARD",
+            "model": "Standard" if complexity != "high" else "Max (auto-selected)",
+            "credit_savings": "30-50%",
+            "quality_impact": "0% — process data in one validated pass",
+            "description": "Data analysis task. Use a single reproducible script and validate the result.",
+            "actions": [
+                "Inspect and validate the input data",
+                "Process the dataset in one reproducible script",
+                "Run one sanity check and report assumptions"
+            ]
+        }
+
+    # Media generation
+    if intent == "media_generation":
+        vague = count_matches(text, VAGUENESS_INDICATORS) > 0
+        return {
+            "strategy": "REFINE_FIRST" if vague else "DIRECT_STANDARD",
+            "model": "Standard",
+            "credit_savings": "40-70%",
+            "quality_impact": "0% — collect missing creative constraints before generation" if vague else "0%",
+            "description": "Media task. Confirm visual constraints before an expensive generation when the prompt is vague.",
+            "actions": [
+                "Confirm style, dimensions, colors, and required elements" if vague else "Generate from the sufficiently specified brief",
+                "Prefer one precise generation over repeated vague attempts"
+            ]
+        }
+
+    # Automation
+    if intent == "automation":
+        return {
+            "strategy": "DECOMPOSE_CASCADE",
+            "model": "Standard" if complexity != "high" else "Max (auto-selected)",
+            "credit_savings": "30-50%",
+            "quality_impact": "0% — define and validate each workflow component",
+            "description": "Automation task. Decompose the workflow and validate integrations before activation.",
+            "actions": [
+                "Define trigger, action, destination, and failure handling",
+                "Test one non-destructive execution",
+                "Enable recurring execution only after validation"
+            ]
+        }
+
     # Content creation
     if intent == "content_creation":
         return {
@@ -311,6 +421,21 @@ def determine_strategy(intent: str, complexity: str, is_mixed: bool,
                 "Short content: generate in one shot",
                 "Long content: section by section for coherence",
                 "Output depth matches what was requested"
+            ]
+        }
+
+    # Vague or unknown prompts should clarify before spending on execution.
+    if intent == "unknown":
+        return {
+            "strategy": "CLARIFY_FIRST",
+            "model": "Chat Mode (Free)",
+            "credit_savings": "100%",
+            "quality_impact": "0% — clarification prevents misrouting and rework",
+            "description": "The request is too ambiguous to route safely without clarification.",
+            "actions": [
+                "Ask for the desired outcome and constraints",
+                "Confirm whether tools, current data, or file output are required",
+                "Route the clarified task only after scope is explicit"
             ]
         }
 
@@ -361,6 +486,12 @@ def generate_directives(intent: str, complexity: str, is_mixed: bool,
             "The more specific the generation prompt, the lower the chance of re-generation (which costs extra credits)."
         ])
 
+    if intent == "automation":
+        directives.extend([
+            "Define the trigger, action, destination, permissions, and failure handling before activation.",
+            "Run one non-destructive smoke test before enabling recurring or external side effects."
+        ])
+
     if is_mixed:
         directives.append(f"MIXED TASK detected ({', '.join(mixed_intents)}). Apply best practices for EACH component.")
 
@@ -390,12 +521,23 @@ def analyze_prompt(prompt: str) -> dict:
     Returns:
         Complete analysis with strategy, model, savings, and directives
     """
-    text = prompt
+    if not isinstance(prompt, str):
+        raise TypeError("prompt must be a string")
+
+    text = prompt.strip()
+    if not text:
+        return {
+            "error": {
+                "code": "EMPTY_PROMPT",
+                "message": "prompt must contain at least one non-whitespace character"
+            },
+            "meta": {"version": SERVER_VERSION}
+        }
     
     # Run all analyzers
     intent, intent_scores = analyze_intent(text)
     complexity, complexity_details = analyze_complexity(text)
-    is_mixed, mixed_intents = detect_mixed_task(intent_scores)
+    is_mixed, mixed_intents = detect_mixed_task(intent_scores, text)
     factual = needs_factual_data(text)
     files = needs_file_output(text)
     actions = needs_agent_action(text)
@@ -413,6 +555,14 @@ def analyze_prompt(prompt: str) -> dict:
                 intent = candidate
                 break
     
+    # A short conceptual question should not become a high-complexity build merely
+    # because it mentions one advanced term such as authentication or security.
+    if intent == "qa_brainstorm" and not actions and not files and not inherent:
+        if complexity_details["word_count"] <= 80:
+            complexity = "low"
+        elif complexity == "high":
+            complexity = "medium"
+
     # Get strategy
     strategy = determine_strategy(
         intent, complexity, is_mixed, mixed_intents,
@@ -421,6 +571,19 @@ def analyze_prompt(prompt: str) -> dict:
     
     # Get directives
     directives = generate_directives(intent, complexity, is_mixed, mixed_intents, files)
+
+    ordered_scores = sorted(intent_scores.values(), reverse=True)
+    top_score = ordered_scores[0] if ordered_scores else 0
+    second_score = ordered_scores[1] if len(ordered_scores) > 1 else 0
+    margin = top_score - second_score
+    if intent == "unknown":
+        confidence = "low"
+    elif top_score >= 3 and margin >= 2:
+        confidence = "high"
+    elif top_score >= 2 and margin >= 1:
+        confidence = "medium"
+    else:
+        confidence = "low"
     
     return {
         "analysis": {
@@ -432,14 +595,19 @@ def analyze_prompt(prompt: str) -> dict:
             "needs_file_output": files,
             "needs_agent_action": actions,
             "is_inherently_complex": inherent,
-            "word_count": len(text.split())
+            "word_count": len(text.split()),
+            "intent_scores": intent_scores,
+            "intent_confidence": confidence,
+            "confidence_margin": margin
         },
         "recommendation": strategy,
         "efficiency_directives": directives,
         "meta": {
-            "version": "v5.2",
-            "quality_guarantee": "ZERO quality loss — audited across 53 adversarial scenarios, ~55% average savings",
-            "simulations": "100,000+ simulations with different premises",
+            "version": SERVER_VERSION,
+            "engine": "boundary-aware multilingual heuristics",
+            "quality_guarantee": "Quality veto: optimize internal process only; never reduce required output quality.",
+            "clarification_policy": "Unknown or ambiguous prompts use CLARIFY_FIRST before paid execution.",
+            "simulations": "53 scenario audit claimed by the project; validate locally before relying on savings estimates",
             "red_team": "High-performance red teams found ZERO quality degradation",
             "key_principle": "Optimize INTERNAL process, never OUTPUT quality"
         }
@@ -536,9 +704,27 @@ def get_strategy_for_task(task_type: str) -> dict:
         }
     }
     
-    task_type_lower = task_type.lower().strip()
+    if not isinstance(task_type, str):
+        raise TypeError("task_type must be a string")
+
+    task_type_lower = normalize_text(task_type).replace(" ", "_")
+    aliases = {
+        "question": "qa",
+        "q_and_a": "qa",
+        "q&a": "qa",
+        "coding": "code",
+        "development": "code",
+        "data": "data_analysis",
+        "dataanalysis": "data_analysis",
+        "media_generation": "media",
+        "image": "media",
+        "workflow": "automation",
+    }
+    task_type_lower = aliases.get(task_type_lower, task_type_lower)
     if task_type_lower in strategies:
-        return strategies[task_type_lower]
+        result = dict(strategies[task_type_lower])
+        result["normalized_task_type"] = task_type_lower
+        return result
     
     return {
         "error": f"Unknown task type: {task_type}",
@@ -556,7 +742,7 @@ def get_golden_rules() -> dict:
         The 10 audited golden rules with explanations
     """
     return {
-        "version": "v5.2 — Audited across 53 adversarial scenarios, ~55% average savings",
+        "version": f"v{SERVER_VERSION} — 53-scenario audit reference; validate locally before relying on savings estimates",
         "rules": [
             {
                 "number": 1,

@@ -1,18 +1,18 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.com/schemas/2025-12-11/server.schema.json",
   "name": "io.github.rafsilva85/credit-optimizer",
-  "title": "Manus Credit Optimizer \u2014 Save 47% Automatically",
-  "description": "Save 47% on Manus AI credits automatically. Zero downsides \u2014 Quality Veto Rule ensures output quality is never compromised. Pays for itself in ~27 prompts. Intelligent model routing (Chat/Standard/Max), smart testing, context compression, and chat mode detection. One-time $12 purchase, lifetime updates.",
+  "title": "Manus Credit Optimizer - Safe Cost Routing",
+  "description": "Manus MCP server for quality-preserving credit routing. Provides multilingual intent analysis, Chat/Standard/Max strategy selection, clarification gates for vague prompts, negation-aware action detection, and mixed-task decomposition.",
   "repository": {
     "url": "https://github.com/rafsilva85/credit-optimizer-v5",
     "source": "github"
   },
-  "version": "5.2.2",
+  "version": "5.3.0",
   "packages": [
     {
       "registryType": "pypi",
-      "identifier": "manus-credit-optimizer",
-      "version": "5.2.2",
+      "identifier": "mcp-credit-optimizer",
+      "version": "5.3.0",
       "transport": {
         "type": "stdio"
       }

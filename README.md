@@ -11,7 +11,7 @@
 
 </p>
 
-# Manus Power Stack
+# Manus Power Stack — Credit Optimizer v5.3
 
 ### 47% of your Manus credits are being wasted. This fixes it automatically.
 
@@ -63,6 +63,10 @@ Analyzes every prompt before execution and decides the cheapest path that delive
 - **Chat Mode Detection**: Routes simple Q&A to Chat Mode ($0 cost)
 - **Batch Detection**: Groups related tasks to reduce overhead
 - **Context Hygiene**: Compresses accumulated context to keep token costs linear
+- **Clarification Gate**: Uses `CLARIFY_FIRST` for empty, unknown, or materially vague prompts
+- **Negation-aware actions**: Does not treat “não crie” or equivalent negations as execution requests
+- **Boundary-aware matching**: Avoids substring errors such as matching `api` inside `capital`
+- **Task aliases**: Normalizes common labels such as `Q&A`, `coding`, `data`, and `media_generation`
 
 ### Fast Navigation v2.0 — Raw Speed
 
@@ -112,11 +116,11 @@ After payback, every prompt saves you money. For the rest of your Manus subscrip
 2. Copy skill files to `~/skills/credit-optimizer/` and `~/skills/fast-navigation/`
 3. Both activate automatically on every task — no configuration needed
 
-### As MCP Server (free — Credit Optimizer only)
+### As Native Manus MCP Server (free — Credit Optimizer only)
 
 ```bash
-pip install mcp-credit-optimizer
-python -m mcp_credit_optimizer
+python3 -m pip install mcp-credit-optimizer
+mcp-credit-optimizer
 ```
 
 Add to your MCP config:
@@ -125,14 +129,14 @@ Add to your MCP config:
 {
   "mcpServers": {
     "credit-optimizer": {
-      "command": "python",
-      "args": ["-m", "mcp_credit_optimizer"]
+      "command": "mcp-credit-optimizer",
+      "args": []
     }
   }
 }
 ```
 
-Works with Claude Desktop, Cursor, Windsurf, Copilot, and any MCP-compatible client.
+Works with Manus and any MCP-compatible client.
 
 > **Why pay when the MCP server is free?** The MCP server saves credits when you remember to call it. The Manus Skill saves credits on **every single prompt automatically** — no manual invocation needed. The Skill also includes Fast Navigation (115x speed boost), which is not available as MCP.
 

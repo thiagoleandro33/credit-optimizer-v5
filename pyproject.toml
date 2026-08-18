@@ -1,14 +1,14 @@
 [project]
 name = "mcp-credit-optimizer"
-version = "5.2.0"
-description = "AI Credit Optimizer MCP Server — Save 30-75% on AI credits with ZERO quality loss. ~55% average savings across 53 adversarial scenarios."
+version = "5.3.0"
+description = "Manus AI Credit Optimizer MCP Server with multilingual intent routing, quality-preserving model selection, clarification gates, and mixed-task decomposition."
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
 authors = [
     {name = "Rafael Silva", email = "rafsilva85@gmail.com"}
 ]
-keywords = ["mcp", "ai", "credits", "optimization", "agent", "claude", "cursor", "manus", "model-context-protocol"]
+keywords = ["mcp", "ai", "credits", "optimization", "agent", "manus", "model-context-protocol"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",

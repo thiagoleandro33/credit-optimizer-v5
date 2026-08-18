@@ -1,8 +1,8 @@
 {
   "manifest_version": "0.2",
   "name": "credit-optimizer",
-  "version": "5.2.0",
-  "description": "MCP server that optimizes Manus AI credit usage by 30-75% without quality loss. Intelligent model routing, smart testing, context hygiene, and 53 audited scenarios.",
+  "version": "5.3.0",
+  "description": "MCP server that optimizes Manus AI credit usage with multilingual intent routing, clarification gates, action detection, mixed-task decomposition, and quality-preserving model selection.",
   "author": {
     "name": "Rafael Silva",
     "url": "https://github.com/rafsilva85"
@@ -22,7 +22,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/rafsilva85/mcp-credit-optimizer"
+    "url": "https://github.com/rafsilva85/credit-optimizer-v5"
   },
   "homepage": "https://pypi.org/project/mcp-credit-optimizer/"
 }

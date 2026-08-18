@@ -5,6 +5,24 @@ All notable changes to the Manus Credit Optimizer will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.3.0] - 2026-08-18
+
+### Added
+- Added `CLARIFY_FIRST` for empty, unknown, or materially vague prompts.
+- Added multilingual normalization for accents, word boundaries, and common task-type aliases.
+- Added negation-aware action detection so phrases such as “não crie” do not trigger execution.
+- Added regression coverage for automation, media refinement, ambiguous prompts, invalid inputs, substring noise, and MCP aliases.
+
+### Changed
+- Improved mixed-task detection to require explicit connective language and a second action.
+- Improved file-output detection so file types alone do not imply delivery.
+- Aligned package, MCP manifests, skill metadata, README, and internal version to 5.3.0.
+- Updated outward-facing compatibility language to Manus-native terminology.
+
+### Fixed
+- Fixed false positives such as `api` inside `capital`.
+- Fixed stale package identifier and repository metadata in the MCP registry manifest.
+
 ## [5.2.2] - 2026-03-26
 
 ### Changed
